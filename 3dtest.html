@@ -1,0 +1,368 @@
+<html>
+
+    <body>
+
+        <canvas id="gameWin" width="1200" height="600" style="overflow: hidden;"> </canvas>
+
+    </body>
+
+    <script>
+
+        // CHAT GPT CODE FOR MAZE GEN
+
+        function generateMaze(width, height) {
+            // Initialize maze with walls (1)
+            let maze = Array(height).fill(0).map(() => Array(width).fill(1));
+
+            // Directions: up, down, left, right
+            const directions = [
+                [-2, 0],  // up
+                [2, 0],   // down
+                [0, -2],  // left
+                [0, 2]    // right
+            ];
+
+            // Function to shuffle an array
+            function shuffle(arr) {
+                for (let i = arr.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [arr[i], arr[j]] = [arr[j], arr[i]];
+                }
+            }
+
+            // Recursive function to carve paths
+            function carve(x, y) {
+                maze[y][x] = 0;  // Set the current position as an open path (0)
+
+                shuffle(directions);  // Randomize the direction order
+
+                for (let [dy, dx] of directions) {
+                    const nx = x + dx;
+                    const ny = y + dy;
+
+                    // Check if the next cell is within bounds and if it's still a wall
+                    if (nx > 0 && nx < width - 1 && ny > 0 && ny < height - 1 && maze[ny][nx] === 1) {
+                        // Carve a path between the current cell and the next cell
+                        maze[y + dy / 2][x + dx / 2] = 0;
+                        carve(nx, ny);  // Recursively carve from the next cell
+                    }
+                }
+            }
+
+            // Start carving from position (1, 1)
+            carve(1, 1);
+
+            return maze;
+        }
+
+        const worldSizeX = 25;
+        const worldSizeY = 25;
+
+        // Example usage
+        const world = generateMaze(worldSizeX, worldSizeY);
+
+        // MY CODE
+
+         let playerPosX = 4;
+         let playerPosY = 4;
+
+         let iLikeCheating = false;
+
+         let winPosX = 100;
+         let winPosY = 100;
+
+         while(checkPosTouchingWall(winPosX,winPosY)) {
+            winPosX=Math.round(Math.random()*5)+worldSizeX-6;
+            winPosY=Math.round(Math.random()*5)+worldSizeY-6;
+         }
+
+         while(checkPlayerTouchingWall()) {
+            playerPosX=Math.round(Math.random()*5);
+            playerPosY=Math.round(Math.random()*5);
+         }
+
+         let playerCam = 15;
+         const fov = 80;
+         const lod = 1200;
+         const rayLod = 16;
+         const minimap = true;
+         let rawDis = [];
+
+         let fps = 30;
+         let mapSize2 = Math.round((5/(Math.max(worldSizeX,worldSizeY)/50)));
+
+         let keysPressed = {};
+
+        document.addEventListener('keydown', (event) => {
+            keysPressed[event.key] = true;
+        });
+
+        document.addEventListener('keyup', (event) => {
+            delete keysPressed[event.key];
+        });
+        function isKeyHeldDown(key) {
+            return keysPressed[key] === true;
+        }
+
+
+        function calRays() {
+            rayVal = [];
+            for(let x = 0; x < lod; x++) {
+                let rayDir = playerCam-(fov/2)+(fov/lod*x);
+                let rayRe = calRay(playerPosX,playerPosY,rayDir);
+                rayVal.push(rayRe);
+            }
+            drawData(rayVal);
+        }   
+
+        function calRay(x, y, dir) {
+            let col = false;
+            let cycle = 0;
+            let ra = convert(dir); 
+            let xvel = Math.cos(ra);
+            let yvel = Math.sin(ra);
+            let posX = x;
+            let posY = y;
+
+            let rayDistance;
+
+            while (!col || cycle > 30*rayLod) {
+                if (checkForCol(posX, posY)) {
+                    col = true;
+                }
+                else {
+                    posX += xvel / (2 * rayLod);
+                    posY += yvel / (2 * rayLod);
+                }   
+                if (checkForCol(posX, posY)) {
+                    col = true;
+                }
+                cycle++;  
+            }
+            cycle = 0;
+            while (col || cycle > 30*rayLod) {
+                if (!checkForCol(posX, posY)) {
+                    col = false;
+                }
+                else {
+                    posX += -xvel / (8 * rayLod);
+                    posY += -yvel / (8 * rayLod);
+                }
+                if (!checkForCol(posX, posY)) {
+                    col = false;
+                }
+                cycle++;
+            }
+            rayDistance = Math.sqrt(Math.pow(posX-playerPosX,2)+Math.pow(posY-playerPosY,2));
+
+            rayDistance = rayDistance*Math.cos(convert(dir-playerCam));
+            return rayDistance;
+        }
+        function convert(val) {
+            return (Math.PI / 180)*val;
+        }
+
+        function checkForCol(x,y) {
+            try {
+                if(world[Math.floor(y)][Math.floor(x)] == "1") {
+                    return true;
+                }
+            }
+            catch {
+                return true;
+            }
+            return false;
+        }
+
+        function drawData(data) {
+            canvast = document.getElementById("gameWin");
+            document.body.style.background = "black";
+            const ctx = canvast.getContext("2d");
+            ctx.clearRect(0, 0, canvast.width, canvast.height);
+            for(let x = 0; x < data.length; x++) {
+                let fC = 200-((data[x]*100).toString()); // fill color
+                ctx.fillStyle = "rgb("+fC+","+fC+","+fC+")";
+                if(data[x] == 0) {
+                    data[x] = 0.001;
+                }
+                let halfHeightScreen = canvast.height/2;
+                ctx.fillRect(x*(canvast.width/lod), halfHeightScreen-(300/data[x])/2, canvast.width/lod, 300/data[x]);
+            }
+            if(iLikeCheating && minimap) {
+                for(let x = 0; x < result.length; x++) {
+                    ctx.fillStyle = "green";
+                    ctx.fillRect(result[x][1]*mapSize2,result[x][0]*mapSize2,mapSize2,mapSize2);
+                }
+            }
+            if(minimap) {
+                ctx.fillStyle="white";
+                for(let y = 0; y < world.length; y++) {
+                    for(let x = 0; x < world[y].length; x++) {
+                        if(world[y][x] == "1") {
+                            ctx.fillRect(y*mapSize2,x*mapSize2,mapSize2,mapSize2);
+                        }
+                    }
+                }
+                ctx.fillStyle="red";
+                ctx.fillRect((playerPosY*mapSize2)-mapSize2/2,(playerPosX*mapSize2)-mapSize2/2,mapSize2,mapSize2);
+                ctx.fillStyle="green";
+                ctx.fillRect((winPosX*mapSize2)-mapSize2/2,(winPosY*mapSize2)-mapSize2/2,mapSize2,mapSize2);
+            }
+        }
+
+        function gameLoop() {
+            setTimeout(function () {
+                handleMovement();
+                calRays();
+                gameLoop();
+                if(Math.sqrt((winPosX-playerPosX)*(winPosX-playerPosX)+(winPosY-playerPosY)*(winPosY-playerPosY))<1.5) {
+                    alert("You win!");
+                    reload();
+                }
+            }, 1000/fps);
+        }
+
+        function handleMovement() {
+            if(isKeyHeldDown("ArrowRight")) {
+                playerCam+=150/fps;   
+            }
+            if(isKeyHeldDown("ArrowLeft")) {
+                playerCam-=150/fps;   
+            }
+            if(isKeyHeldDown("ArrowUp")) {
+                let ra = convert(playerCam);
+                let xvel = Math.cos(ra) * 5 / fps;
+                let yvel = Math.sin(ra) * 5 / fps;
+                playerPosX+=xvel;
+                stopColusionX();
+                playerPosY+=yvel;
+                stopColusionY();
+            }
+            if(isKeyHeldDown("x")) {
+                mapSize2=Math.round((5/(Math.max(worldSizeX,worldSizeY)/50)))*2.5;
+            }
+            else {
+                mapSize2=Math.round((5/(Math.max(worldSizeX,worldSizeY)/50)));
+            }
+            if(isKeyHeldDown("m")) {
+                iLikeCheating=true;
+            }
+            else {
+                iLikeCheating=false;
+            }
+        }
+        function stopColusionX() {
+            while(checkPlayerTouchingWall()) {
+                playerPosX+=Math.cos(convert(playerCam)) * -0.01;
+            }
+        }
+        function stopColusionY() {
+            while(checkPlayerTouchingWall()) {
+                playerPosY+=Math.sin(convert(playerCam)) * -0.01;
+            }
+        }
+
+        function checkPlayerTouchingWall() {
+            try {
+                if(world[Math.floor(playerPosY)][Math.floor(playerPosX)] == "1") {
+                    return true;
+                }
+            }
+            catch {
+                return true;
+            }
+            return false;
+        }
+        function checkPosTouchingWall(x,y) {
+            try {
+                if(world[Math.floor(x)][Math.floor(y)] == "1") {
+                    return true;
+                }
+            }
+            catch {
+                return true;
+            }
+            return false;
+        }
+
+        // Maze solver
+
+        function genList() {
+            fullWorld = [];
+            for(let x = 0; x < world[0].length; x++) {
+                fullWorld.push(1);
+                row = [];
+                for(let x = 0; x < world.length; x++) {
+                    row.push(999999);
+                }
+                fullWorld[x]=row;
+            }
+            return fullWorld;
+        }
+
+        function floodMaze() {
+            let searchPos = [[1,1,1]];
+            let fillSearch = genList();
+            
+
+            for(let x = 0; x < searchPos.length; x++) {
+                if(checkLoc(searchPos[x])) {
+                    if (fillSearch[searchPos[x][0]][searchPos[x][1]] > searchPos[x][2]) {
+                        fillSearch[searchPos[x][0]][searchPos[x][1]] = searchPos[x][2];
+                        searchPos.push([searchPos[x][0]+1,searchPos[x][1],fillSearch[searchPos[x][0]][searchPos[x][1]]+1]);
+                        searchPos.push([searchPos[x][0],searchPos[x][1]+1,fillSearch[searchPos[x][0]][searchPos[x][1]]+1]);
+                        searchPos.push([searchPos[x][0]-1,searchPos[x][1],fillSearch[searchPos[x][0]][searchPos[x][1]]+1]);
+                        searchPos.push([searchPos[x][0],searchPos[x][1]-1,fillSearch[searchPos[x][0]][searchPos[x][1]]+1]);
+                    }
+                }
+            }
+            return fillSearch;
+        }
+
+        function searchBackwards(floodArray) {
+            let curPosX = winPosX;
+            let curPosY = winPosY;
+            let solveMovements = []; 
+
+            let movements = [[1,0], [-1,0], [0,1], [0,-1]];
+            let cycle = 0;
+
+            while(cycle<99) {
+                for(let x = 0; x < movements.length; x++) {
+                    try {
+                        if(floodArray[curPosY][curPosX] > floodArray[curPosY+movements[x][1]][curPosX+movements[x][0]]) {
+                            solveMovements.push([curPosX+movements[x][0],curPosY+movements[x][1]]);
+                            curPosX+=movements[x][0];
+                            curPosY+=movements[x][1];
+                            console.log([curPosX,curPosY, floodArray[curPosX][curPosY]]);
+                            cycle = 0;
+                        }
+                    }
+                    catch {
+
+                    }
+                    cycle++;
+                }
+            }
+
+            return solveMovements;
+        }
+
+        function checkLoc(pos) {
+            if(0 > pos[0] || pos[0] > world.length-1) { return false; } // Remove invalid X pos
+            if(0 > pos[1] || pos[1] > world.length-1) { return false; } // Remove invalid Y pos
+            if(world[pos[0]][pos[1]] == "1") {return false; }
+
+            return true;
+        }
+
+        let floodedMaze = floodMaze();
+        let result = searchBackwards(floodedMaze);
+
+
+        gameLoop();
+
+
+    </script>
+
+</html>
