@@ -1,6 +1,6 @@
 // World size.
-const worldSizeX = 201;
-const worldSizeY = 201;
+const worldSizeX = 31;
+const worldSizeY = 31;
 
 // Creating the world.
 const world = generateMaze(worldSizeX, worldSizeY);
@@ -56,6 +56,21 @@ let mapSize2 = Math.round((5/(Math.max(worldSizeX,worldSizeY)/50)));
 
 let floodedMaze = floodMaze();
 
+// Enemies!
+
+// posX, posY
+
+enemyList = [];
+let placeholderSize = 50;
+
+createEnemy([1.5,1.5]); // Creates a dummy enemy.
+
+// Canvas
+
+const canvast = document.getElementById("gameWin"); // Get Canvas
+document.body.style.background = "black";
+const ctx = canvast.getContext("2d");
+
 // Keypress detection.
 
 let keysPressed = {};
@@ -79,7 +94,7 @@ function gameLoop() {
         calRays();
         gameLoop();
         if(Math.sqrt((winPosX-playerPosX)*(winPosX-playerPosX)+(winPosY-playerPosY)*(winPosY-playerPosY))<1.5) {
-            if(!won) {
+            if(false==true) {
                 alert("You win!");
                 won=true;
             }
@@ -195,9 +210,6 @@ function checkForCol(x,y) {
 // Render the world
 
 function drawData(data, texturePos) {
-    canvast = document.getElementById("gameWin"); // Get Canvas
-    document.body.style.background = "black";
-    const ctx = canvast.getContext("2d");
     ctx.clearRect(0, 0, canvast.width, canvast.height); // Clear from previous.
 
     let mapFullSizeX = mapSize2*worldSizeX;
@@ -209,7 +221,11 @@ function drawData(data, texturePos) {
         ctx.fillRect(0,canvast.height/2,canvast.width,canvast.height/2)
     }
 
-    for(let x = 0; x < data.length; x++) { // Loop through al rays.
+    sortedData = sortList(data, texturePos);
+    data = sortedData[0]; texturePos = sortedData[1];
+    let positionOfRays = sortedData[2];
+
+    for(let x = data.length; x > 0; x--) { // Loop through al rays.
         if(data[x] == 0) { // Prevents rays that have not travled from dividing by 0, causing a glitchy look when looking at walls.
             data[x] = 0.001;
         }
@@ -223,8 +239,11 @@ function drawData(data, texturePos) {
         if(backroomsMode) {
             img = document.getElementById("backrooms");
         }
-        ctx.drawImage(img, Math.min(width-1,texturePos[x]), 0, canvast.width/lod, 64, (x*(canvast.width/lod)), canvast.height/2-(300/data[x])/2, canvast.width/lod, 300/data[x]);
+        ctx.drawImage(img, Math.min(width-1,texturePos[x]), 0, canvast.width/lod, 64, (positionOfRays[x]*(canvast.width/lod)), canvast.height/2-(300/data[x])/2, canvast.width/lod, 300/data[x]);
         //ctx.fillRect((x*(canvast.width/lod)), canvast.height/2-(300/data[x])/2, canvast.width/lod, 300/data[x]); // Draws the line.
+        if(x-1 != -1) {
+            checkForEnemy(data[x], data[x-1]);
+        }
     }
     if(iLikeCheating && minimap) { // Renders the solution to the maze
         for(let x = 0; x < result.length; x++) {
@@ -250,6 +269,47 @@ function drawData(data, texturePos) {
         ctx.fillRect(mapFullSizeX-((winPosX*mapSize2)-mapSize2/2),((winPosY*mapSize2)-mapSize2/2),mapSize2,mapSize2);
     }
 }
+
+function makeArray(length) {
+    vals = [];
+
+    for(let x = 0; x<length; x++) {
+        vals.push(x);
+    }
+    return vals;
+}
+
+function sortList(vals, texturePos) {
+    sorted = false;
+
+    positionsOfRays = makeArray(vals.length)
+
+    while(!sorted) {
+        sorted=true;
+        for(let x = 0; x < vals.length; x++) {
+            if(x!=vals.length-1) {
+                if(vals[x]>vals[x+1]) {
+                    cur = vals[x];
+                    vals[x]=vals[x+1];
+                    vals[x+1] = cur;
+
+                    cur2 = texturePos[x];
+                    texturePos[x] = texturePos[x+1];
+                    texturePos[x+1] = cur2;
+
+                    cur3 = positionsOfRays[x];
+                    positionsOfRays[x] = positionsOfRays[x+1];
+                    positionsOfRays[x+1] = cur3;
+
+                    sorted=false;
+                }
+            }
+        }
+    }
+
+    return [vals,texturePos, positionsOfRays];
+}
+
 
 // Handle inputs.
 
@@ -404,7 +464,7 @@ function searchBackwards(floodArray) {
 
             }
             cycle++;
-        }``
+        }
     }
 
     return solveMovements;
@@ -430,6 +490,29 @@ function findPlayerAndEndSpawn() {
      playerPosX=1.5;
      playerPosY=1.5;
 }
+
+// Creates a enemy
+function createEnemy(loc) {
+    enemyList.push([loc[0], loc[1]]);
+}
+
+// Enemy render
+function checkForEnemy(curDis,nextDis) {
+    for(let x = 0; x < enemyList.length; x++) {
+        let relativeDir = Math.abs((180/Math.PI)*(Math.atan2(playerPosY-enemyList[x][1],playerPosX-enemyList[x][0])))+Math.abs(playerCam-Math.round(playerCam/360)*360);
+        let disToPlayer = Math.sqrt(Math.pow(playerPosX-enemyList[x][0],2)+Math.pow(playerPosY-enemyList[x][1],2));
+        if(Math.abs(relativeDir) <= fov/2) {
+            if(disToPlayer < curDis && disToPlayer > nextDis) {
+                let size = (1/disToPlayer)*placeholderSize;
+                let xLoc = ((canvast.width/fov)*relativeDir)+(canvast.width/2);
+                ctx.fillStyle="black";
+                console.log([xLoc-size/2, (canvast.height/2)-(size/2), size,size, (canvast.width/fov)*relativeDir]);
+                ctx.fillRect(xLoc-size/2, (canvast.height/2)-(size/2), size,size);
+            }
+        }
+    }
+}
+
 
 
 // CHAT GPT CODE FOR MAZE GEN
