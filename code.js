@@ -1,6 +1,6 @@
 // World size.
-const worldSizeX = 31;
-const worldSizeY = 31;
+const worldSizeX = 7;
+const worldSizeY = 7;
 
 // Creating the world.
 const world = generateMaze(worldSizeX, worldSizeY);
@@ -43,7 +43,7 @@ const width = 80;
 
 // Fun
 
-let backroomsMode = false;
+let backroomsMode = true;
 
 // Won?
 
@@ -61,9 +61,10 @@ let floodedMaze = floodMaze();
 // posX, posY
 
 enemyList = [];
-let placeholderSize = 50;
+let placeholderSize = 150;
 
-createEnemy([1.5,1.5]); // Creates a dummy enemy.
+findPlayerAndEndSpawn();
+createEnemy([winPosX,winPosY], 1, 0.3); // Creates a dummy enemy.
 
 // Canvas
 
@@ -93,8 +94,9 @@ function gameLoop() {
         handleMovement();
         calRays();
         gameLoop();
-        if(Math.sqrt((winPosX-playerPosX)*(winPosX-playerPosX)+(winPosY-playerPosY)*(winPosY-playerPosY))<1.5) {
-            if(false==true) {
+        enemyMove();
+        if(Math.sqrt((winPosX-playerPosX)*(winPosX-playerPosX)+(winPosY-playerPosY)*(winPosY-playerPosY))<0.5) {
+            if(won==false) {
                 alert("You win!");
                 won=true;
             }
@@ -244,6 +246,9 @@ function drawData(data, texturePos) {
         if(x-1 != -1) {
             checkForEnemy(data[x], data[x-1]);
         }
+        else {
+            checkForEnemy(data[x], 0.000001);
+        }
     }
     if(iLikeCheating && minimap) { // Renders the solution to the maze
         for(let x = 0; x < result.length; x++) {
@@ -266,7 +271,7 @@ function drawData(data, texturePos) {
         ctx.fillStyle="red"; // Renders the player.
         ctx.fillRect(mapFullSizeX-((playerPosY*mapSize2)-mapSize2/2),((playerPosX*mapSize2)-mapSize2/2),mapSize2,mapSize2);
         ctx.fillStyle="green"; // Renders the end goal.
-        ctx.fillRect(mapFullSizeX-((winPosX*mapSize2)-mapSize2/2),((winPosY*mapSize2)-mapSize2/2),mapSize2,mapSize2);
+        ctx.fillRect(mapFullSizeX-((winPosY*mapSize2)-mapSize2/2),((winPosX*mapSize2)-mapSize2/2),mapSize2,mapSize2);
     }
 }
 
@@ -315,10 +320,12 @@ function sortList(vals, texturePos) {
 
 function handleMovement() {
     if(isKeyHeldDown("ArrowRight") || isKeyHeldDown("d")) {
-        playerCam+=150/fps;   
+        playerCam+=150/fps;  
+        fixCam(); 
     }
     if(isKeyHeldDown("ArrowLeft") || isKeyHeldDown("a")) {
         playerCam-=150/fps;   
+        fixCam();
     }
     if(isKeyHeldDown("ArrowUp") ||isKeyHeldDown("w")) {
         let ra = convert(playerCam);
@@ -349,6 +356,18 @@ function handleMovement() {
     }
     else {
         iLikeCheating=false;
+    }
+}
+
+function fixCam() {
+    while(playerCam>=360) {
+        playerCam-=360;
+    }
+    while(playerCam<-360) {
+        playerCam+=360;
+    }
+    if(playerCam<0) {
+        playerCam = 360 - Math.abs(playerCam);
     }
 }
 
@@ -442,8 +461,8 @@ function floodMaze() {
 // Creates the optimal path from the begining to the end.
 
 function searchBackwards(floodArray) {
-    let curPosX = winPosX;
-    let curPosY = winPosY;
+    let curPosX = winPosX-0.5;
+    let curPosY = winPosY-0.5;
     let solveMovements = []; 
 
     let movements = [[1,0], [-1,0], [0,1], [0,-1]];
@@ -486,30 +505,58 @@ function findPlayerAndEndSpawn() {
         winPosX=Math.round(Math.random()*5)+worldSizeX-6;
         winPosY=Math.round(Math.random()*5)+worldSizeY-6;
      }
-
+     winPosX+=0.5;
+     winPosY+=0.5;
      playerPosX=1.5;
      playerPosY=1.5;
 }
 
 // Creates a enemy
-function createEnemy(loc) {
-    enemyList.push([loc[0], loc[1]]);
+function createEnemy(loc, type, spd) {
+    enemyList.push([loc[0], loc[1], type, spd]);
 }
 
 // Enemy render
 function checkForEnemy(curDis,nextDis) {
     for(let x = 0; x < enemyList.length; x++) {
-        let relativeDir = Math.abs((180/Math.PI)*(Math.atan2(playerPosY-enemyList[x][1],playerPosX-enemyList[x][0])))+Math.abs(playerCam-Math.round(playerCam/360)*360);
+        let relativeDir = 180-(Math.abs(180/Math.PI)*Math.atan2(playerPosY-enemyList[0][1],playerPosX-enemyList[0][0]))-(360-playerCam);
         let disToPlayer = Math.sqrt(Math.pow(playerPosX-enemyList[x][0],2)+Math.pow(playerPosY-enemyList[x][1],2));
         if(Math.abs(relativeDir) <= fov/2) {
-            if(disToPlayer < curDis && disToPlayer > nextDis) {
+            if(disToPlayer < curDis) {
+                let playerSprite = document.getElementById("yes");
                 let size = (1/disToPlayer)*placeholderSize;
-                let xLoc = ((canvast.width/fov)*relativeDir)+(canvast.width/2);
+                let xLoc = ((canvast.width/fov)*-relativeDir)+(canvast.width/2);
                 ctx.fillStyle="black";
-                console.log([xLoc-size/2, (canvast.height/2)-(size/2), size,size, (canvast.width/fov)*relativeDir]);
-                ctx.fillRect(xLoc-size/2, (canvast.height/2)-(size/2), size,size);
+                //ctx.globalAlpha = Math.min(Math.max(0,2*fogIntensity-disToPlayer),1);
+                ctx.drawImage(playerSprite,xLoc-size/2, (canvast.height/2)-(size/2), size,size);
+            }
+            else {
+                
             }
         }
+    }
+}
+
+// Enemy Move
+
+function enemyMove() {
+
+    /*for(let x = 0; x < enemyList.length; x++) {
+        let enemyDir = (Math.abs(180/Math.PI)*Math.atan2(playerPosY-enemyList[0][1],playerPosX-enemyList[0][0]));
+
+        enemyList[x][0] += Math.cos(enemyDir) * -5 / fps * enemyList[x][3];
+        enemyList[x][1] += Math.sin(enemyDir) * -5 / fps * enemyList[x][3];
+    } */
+}
+
+function stopEnemyHitWallX(x, xvel) {
+    while(checkPosTouchingWall(enemyList[x][0],enemyList[x][1])) {
+        enemyList[x][0]+=xvel*-0.1;
+    }
+}
+function stopEnemyHitWallY(x, yvel) {
+    while(checkPosTouchingWall(enemyList[x][0],enemyList[x][1])) {
+        enemyList[x][0]+=yvel*-0.1;
     }
 }
 
@@ -561,8 +608,6 @@ function generateMaze(width, height) {
 
     return maze;
 }
-
-findPlayerAndEndSpawn();
 
 // Makes win route.
 let result = searchBackwards(floodedMaze);
