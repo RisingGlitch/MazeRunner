@@ -52,12 +52,6 @@ let backroomsMode = true;
 
 let won = false;
 
-// Minimap
-
-let explored = Array(worldSizeX).fill(0).map(() => Array(worldSizeY).fill(1));
-let defaultMode = true;
-let exploreMode = defaultMode;
-
 // Calculating Minimap Size
 let mapSize2 = Math.round((5/(Math.max(worldSizeX,worldSizeY)/50)));
 
@@ -116,7 +110,6 @@ function gameLoop() {
         calRays();
         gameLoop();
         enemyMove();
-        uncoverMinimap();
         if(Math.sqrt((winPosX-playerPosX)*(winPosX-playerPosX)+(winPosY-playerPosY)*(winPosY-playerPosY))<0.5) {
             if(won==false) {
                 alert("You win!");
@@ -125,28 +118,6 @@ function gameLoop() {
             location.reload();
         }
     }, 1000/fps);
-}
-
-function uncoverMinimap() {
-    let x = Math.floor(playerPosX);
-    let y = Math.floor(playerPosY);
-
-    for(let xIndex = -1; xIndex < 2; xIndex++) {
-        for(let yIndex = -1; yIndex < 2; yIndex++) {
-            if(checkIfValidPoint(y+yIndex,x+xIndex)) {
-                explored[y+yIndex][x+xIndex] = "0";
-            }
-        }
-    }
-}
-
-// Check if a pos is in the map
-
-function checkIfValidPoint(x,y) {
-    if(x>=0 && x<worldSizeX && y>=0 && y<worldSizeY) {
-        return true;
-    }
-    return false;
 }
 
 // FPS monitering
@@ -254,7 +225,7 @@ function convert(val) {
 
 function checkForCol(x,y) {
     try {
-        if(world[Math.floor(y)][Math.floor(x)] != "0") {
+        if(world[Math.floor(y)][Math.floor(x)] == "1") {
             return true;
         }
     }
@@ -278,7 +249,11 @@ function drawData(data, texturePos) {
         ctx.fillRect(0,canvast.height/2,canvast.width,canvast.height/2)
     }
 
-    for(let x = 0; x < data.length; x++) { // Loop through al rays.
+    sortedData = sortList(data, texturePos);
+    data = sortedData[0]; texturePos = sortedData[1];
+    let positionOfRays = sortedData[2];
+
+    for(let x = data.length; x > 0; x--) { // Loop through al rays.
         if(data[x] == 0) { // Prevents rays that have not travled from dividing by 0, causing a glitchy look when looking at walls.
             data[x] = 0.001;
         }
@@ -292,8 +267,14 @@ function drawData(data, texturePos) {
         if(backroomsMode) {
             img = document.getElementById("backrooms");
         }
-        ctx.drawImage(img, Math.min(width-1,texturePos[x]), 0, canvast.width/lod, 64, (x*(canvast.width/lod)), canvast.height/2-(300/data[x])/2, canvast.width/lod, 300/data[x]);
+        ctx.drawImage(img, Math.min(width-1,texturePos[x]), 0, canvast.width/lod, 64, (positionOfRays[x]*(canvast.width/lod)), canvast.height/2-(300/data[x])/2, canvast.width/lod, 300/data[x]);
         //ctx.fillRect((x*(canvast.width/lod)), canvast.height/2-(300/data[x])/2, canvast.width/lod, 300/data[x]); // Draws the line.
+        if(x-1 != -1) {
+            checkForEnemy(data[x], data[x-1]);
+        }
+        else {
+            checkForEnemy(data[x], 0.000001);
+        }
     }
     if(iLikeCheating && minimap) { // Renders the solution to the maze
         for(let x = 0; x < result.length; x++) {
@@ -308,11 +289,6 @@ function drawData(data, texturePos) {
         for(let y = 0; y < world.length; y++) {
             for(let x = 0; x < world[y].length; x++) {
                 if(world[y][x] == "1") {
-                    if(exploreMode) {
-                        if(explored[y][x] == "1") {
-                            continue;
-                        }
-                    }
                     ctx.fillRect(mapFullSizeX-(y*mapSize2),(x*mapSize2),mapSize2,mapSize2);
                 }
             }
@@ -408,11 +384,9 @@ function handleMovement() {
     }
     if(isKeyHeldDown("m")) {
         iLikeCheating=true;
-        exploreMode = false;
     }
     else {
         iLikeCheating=false;
-        exploreMode = defaultMode;
     }
     if(isKeyHeldDown("q")) {
         acPlayerSpeed=playerSpeed*2; // Sprint
@@ -463,7 +437,7 @@ function stopColusionBackY() {
 
 function checkPlayerTouchingWall() {
     try {
-        if(world[Math.floor(playerPosY)][Math.floor(playerPosX)] != "0") {
+        if(world[Math.floor(playerPosY)][Math.floor(playerPosX)] == "1") {
             return true;
         }
     }
@@ -477,7 +451,7 @@ function checkPlayerTouchingWall() {
 
 function checkPosTouchingWall(x,y) {
     try {
-        if(world[Math.floor(x)][Math.floor(y)] != "0") {
+        if(world[Math.floor(x)][Math.floor(y)] == "1") {
             return true;
         }
     }
